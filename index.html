@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>先秦典籍概念可视化对比方案</title>
+    <!-- 引入外部资源 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- 配置Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        lunyu: '#1a5fb4', // 论语-靛蓝色系
+                        mengzi: '#c15400', // 孟子-赭红色系
+                        neutral: '#f5f5f0', // 背景色
+                        paper: '#fffbf0', // 纸张色
+                        ink: '#2d2d2a' // 墨色
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans SC', 'sans-serif'],
+                        serif: ['Noto Serif SC', 'serif']
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .chart-container {
+                @apply bg-paper rounded-lg shadow-md p-4 transition-all duration-300 hover:shadow-lg;
+            }
+            .full-page-section {
+                @apply min-h-[80vh] flex flex-col;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:translate-y-[-5px];
+            }
+            .text-balance {
+                text-wrap: balance;
+            }
+            .chapter-nav {
+                @apply max-h-[600px] overflow-y-auto p-4 border-r border-gray-200;
+            }
+            .chapter-item {
+                @apply px-3 py-2 rounded-md cursor-pointer hover:bg-gray-100 transition-colors;
+            }
+            .chapter-item.active {
+                @apply bg-lunyu/20 font-medium;
+            }
+            .chapter-item.full-text {
+                @apply font-bold;
+            }
+            .chart-switch {
+                @apply flex space-x-2 mb-4;
+            }
+            .switch-btn {
+                @apply px-4 py-2 rounded-md bg-gray-200 text-gray-700 font-medium transition-colors;
+            }
+            .switch-btn.active {
+                @apply bg-lunyu text-white;
+            }
+            .file-drop-active {
+                @apply border-lunyu bg-lunyu/5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-neutral text-ink min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center space-x-3 mb-3 md:mb-0">
+                <i class="fa fa-book text-2xl text-lunyu"></i>
+                <h1 class="text-xl md:text-2xl font-serif font-bold">先秦典籍概念可视化对比方案</h1>
+            </div>
+            <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+                <div class="text-sm text-gray-600">
+                    <span class="inline-block w-3 h-3 rounded-full bg-lunyu mr-1"></span>《论语》
+                    <span class="inline-block w-3 h-3 rounded-full bg-mengzi ml-3 mr-1"></span>《孟子》
+                </div>
+                <button id="aboutBtn" class="text-sm flex items-center text-gray-700 hover:text-lunyu transition-colors">
+                    <i class="fa fa-info-circle mr-1"></i> 关于
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 文件上传区 -->
+        <section class="mb-8 bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-lg font-serif font-semibold mb-4 flex items-center">
+                <i class="fa fa-upload text-lunyu mr-2"></i>数据上传
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="lunyuFile" class="block text-sm font-medium text-gray-700 mb-2">《论语》分析结果</label>
+                    <div class="flex items-center">
+                        <label id="lunyuDropArea" class="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-lunyu transition-colors cursor-pointer">
+                            <input type="file" id="lunyuFile" accept=".xlsx, .xls" class="hidden" />
+                            <i class="fa fa-file-excel-o text-3xl text-gray-400 mb-2"></i>
+                            <p class="text-sm text-gray-500" id="lunyuFileName">点击或拖拽文件到此处</p>
+                            <p class="text-xs text-gray-400 mt-1 hidden" id="lunyuFileSizeInfo">支持 .xlsx, .xls 格式，最大 10MB</p>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label for="mengziFile" class="block text-sm font-medium text-gray-700 mb-2">《孟子》分析结果</label>
+                    <div class="flex items-center">
+                        <label id="mengziDropArea" class="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-mengzi transition-colors cursor-pointer">
+                            <input type="file" id="mengziFile" accept=".xlsx, .xls" class="hidden" />
+                            <i class="fa fa-file-excel-o text-3xl text-gray-400 mb-2"></i>
+                            <p class="text-sm text-gray-500" id="mengziFileName">点击或拖拽文件到此处</p>
+                            <p class="text-xs text-gray-400 mt-1 hidden" id="mengziFileSizeInfo">支持 .xlsx, .xls 格式，最大 10MB</p>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-center">
+                <button id="visualizeBtn" class="bg-lunyu hover:bg-lunyu/90 text-white px-6 py-2 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i class="fa fa-line-chart mr-1"></i> 生成可视化
+                </button>
+            </div>
+        </section>
+        
+        <!-- 可视化区域 - 初始隐藏 -->
+        <section id="visualizationSection" class="hidden">
+            <!-- 高频概念词分析 -->
+            <div class="mb-12">
+                <h2 class="text-lg font-serif font-semibold mb-4 flex items-center">
+                    <i class="fa fa-bookmark text-mengzi mr-2"></i>高频概念词分析
+                </h2>
+                <div class="bg-paper rounded-lg shadow-md p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h3 class="font-medium text-lunyu mb-2">《论语》</h3>
+                            <div class="chapter-nav">
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2" id="lunyuChapters"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-medium text-mengzi mb-2">《孟子》</h3>
+                            <div class="chapter-nav">
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2" id="mengziChapters"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 章节概念Top20柱状图 -->
+            <div class="mb-12">
+                <h2 class="text-lg font-serif font-semibold mb-4 flex items-center">
+                    <i class="fa fa-bar-chart text-lunyu mr-2"></i>高频概念Top20
+                </h2>
+                <div class="chart-container" id="chapterBarChart" style="height: 500px;"></div>
+            </div>
+            
+            
+            <!-- 概念频率对比图（单独占一页） -->
+            <section class="full-page-section mb-12">
+                <h2 class="text-lg font-serif font-semibold mb-6 flex items-center">
+                    <i class="fa fa-pie-chart text-lunyu mr-2"></i>核心概念对比
+                </h2>
+                <div class="chart-container flex-grow" id="ringChart"></div>
+            </section>
+            
+            <!-- 章节概念频次差异热力图 -->
+            <div class="mb-12">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-serif font-semibold flex items-center">
+                        <i class="fa fa-th text-mengzi mr-2"></i>章节概念频次差异热力图
+                    </h2>
+                    <div class="chart-switch">
+                        <button id="heatmapLunyuBtn" class="switch-btn active">论语</button>
+                        <button id="heatmapMengziBtn" class="switch-btn">孟子</button>
+                        <button id="heatmapCompareBtn" class="switch-btn">对比分析</button>
+                    </div>
+                </div>
+                <div class="chart-container h-[600px]" id="heatmapChart"></div>
+            </div>
+
+            <!-- 关键概念共现图谱展示 -->
+            <div class="mb-12">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-serif font-semibold flex items-center">
+                        <i class="fa fa-share-alt text-mengzi mr-2"></i>关键概念共现图谱展示
+                    </h2>
+                    <div class="text-xs text-gray-500">
+                        <span>节点大小表示概念频率，连线粗细表示共现强度</span>
+                    </div>
+                </div>
+                <div class="chart-container h-[600px]" id="cooccurrenceChart"></div>
+            </div>
+    
+            <!-- 概念共现桑基图 -->
+            <div class="mb-12">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-serif font-semibold flex items-center">
+                        <i class="fa fa-random text-lunyu mr-2"></i>概念共现桑基图
+                    </h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="chart-container" id="sankeyLunyu" style="height: 500px;"></div>
+                    <div class="chart-container" id="sankeyMengzi" style="height: 500px;"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- 页脚 -->
+    <footer class="bg-white mt-12 py-6 border-t border-gray-200">
+        <div class="container mx-auto px-4 text-center text-sm text-gray-600">
+            <p>先秦典籍概念可视化对比方案 | 数据可视化课程设计</p>
+        </div>
+    </footer>
+    
+    <!-- 关于模态框 -->
+    <div id="aboutModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+        <div class="bg-paper rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto m-4">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-serif font-bold">关于本工具</h3>
+                    <button id="closeAboutBtn" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <p class="mb-4 text-balance">本工具用于《论语》与《孟子》的概念统计与共现分析，通过多种可视化方式展示两部经典中的核心概念及其关系。</p>
+                <h4 class="font-medium text-lg mb-2">可视化说明</h4>
+                <ul class="list-disc pl-5 mb-4 space-y-1">
+                    <li><strong>章节高频概念柱状图</strong>：展示选定章节中Top20概念频率分布，按频次降序排列</li>
+                    <li><strong>关键概念共现图谱</strong>：展示全书重要概念的共现关系对</li>
+                    <li><strong>概念频率对比</strong>：环形柱状图，内环为《论语》，外环为《孟子》</li>
+                    <li><strong>章节概念频次热力图</strong>：可选择展示《论语》、《孟子》或对比分析的概念频次差异</li>
+                    <li><strong>概念共现桑基图</strong>：展示概念之间的流动关系</li>
+                </ul>
+                <h4 class="font-medium text-lg mb-2">使用方法</h4>
+                <p>上传《论语》和《孟子》的Excel分析结果文件，点击"生成可视化"按钮即可查看分析结果。</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量存储解析后的数据
+        let lunyuData = null;
+        let mengziData = null;
+        let currentChapter = null;
+        let heatmapType = 'lunyu'; // 默认为论语热力图
+        
+        // DOM元素
+        const lunyuFileInput = document.getElementById('lunyuFile');
+        const mengziFileInput = document.getElementById('mengziFile');
+        const lunyuFileName = document.getElementById('lunyuFileName');
+        const mengziFileName = document.getElementById('mengziFileName');
+        const lunyuDropArea = document.getElementById('lunyuDropArea');
+        const mengziDropArea = document.getElementById('mengziDropArea');
+        const lunyuFileSizeInfo = document.getElementById('lunyuFileSizeInfo');
+        const mengziFileSizeInfo = document.getElementById('mengziFileSizeInfo');
+        const visualizeBtn = document.getElementById('visualizeBtn');
+        const visualizationSection = document.getElementById('visualizationSection');
+        const aboutBtn = document.getElementById('aboutBtn');
+        const aboutModal = document.getElementById('aboutModal');
+        const closeAboutBtn = document.getElementById('closeAboutBtn');
+        const lunyuChapters = document.getElementById('lunyuChapters');
+        const mengziChapters = document.getElementById('mengziChapters');
+        const heatmapLunyuBtn = document.getElementById('heatmapLunyuBtn');
+        const heatmapMengziBtn = document.getElementById('heatmapMengziBtn');
+        const heatmapCompareBtn = document.getElementById('heatmapCompareBtn');
+        
+        // 初始化图表实例
+        let cooccurrenceChart, ringChart, heatmapChart;
+        let chapterBarChart;
+        let sankeyLunyuChart, sankeyMengziChart;
+        
+        // 初始化文件上传区域的事件监听
+        function initFileUploadEvents() {
+            // 点击上传
+            lunyuFileInput.addEventListener('change', handleLunyuFileUpload);
+            mengziFileInput.addEventListener('change', handleMengziFileUpload);
+            
+            // 显示文件格式信息
+            lunyuDropArea.addEventListener('mouseenter', () => {
+                lunyuFileSizeInfo.classList.remove('hidden');
+            });
+            lunyuDropArea.addEventListener('mouseleave', () => {
+                if (!hasClass(lunyuDropArea, 'file-drop-active')) {
+                    lunyuFileSizeInfo.classList.add('hidden');
+                }
+            });
+            
+            mengziDropArea.addEventListener('mouseenter', () => {
+                mengziFileSizeInfo.classList.remove('hidden');
+            });
+            mengziDropArea.addEventListener('mouseleave', () => {
+                if (!hasClass(mengziDropArea, 'file-drop-active')) {
+                    mengziFileSizeInfo.classList.add('hidden');
+                }
+            });
+            
+            // 拖拽上传 - 论语
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                lunyuDropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function highlight() {
+                lunyuDropArea.classList.add('file-drop-active');
+                lunyuFileSizeInfo.classList.remove('hidden');
+            }
+            
+            function unhighlight() {
+                lunyuDropArea.classList.remove('file-drop-active');
+                if (!isMouseOverElement(lunyuDropArea)) {
+                    lunyuFileSizeInfo.classList.add('hidden');
+                }
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                lunyuDropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                lunyuDropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            lunyuDropArea.addEventListener('drop', handleLunyuDrop, false);
+            
+            // 拖拽上传 - 孟子
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                mengziDropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function highlightMengzi() {
+                mengziDropArea.classList.add('file-drop-active');
+                mengziFileSizeInfo.classList.remove('hidden');
+            }
+            
+            function unhighlightMengzi() {
+                mengziDropArea.classList.remove('file-drop-active');
+                if (!isMouseOverElement(mengziDropArea)) {
+                    mengziFileSizeInfo.classList.add('hidden');
+                }
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                mengziDropArea.addEventListener(eventName, highlightMengzi, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                mengziDropArea.addEventListener(eventName, unhighlightMengzi, false);
+            });
+            
+            mengziDropArea.addEventListener('drop', handleMengziDrop, false);
+        }
+        
+        // 辅助函数：阻止默认行为
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // 辅助函数：检查元素是否有指定类
+        function hasClass(element, className) {
+            return element.classList.contains(className);
+        }
+        
+        // 辅助函数：检查鼠标是否在元素上方
+        function isMouseOverElement(element) {
+            const rect = element.getBoundingClientRect();
+            return (
+                event.clientX >= rect.left &&
+                event.clientX <= rect.right &&
+                event.clientY >= rect.top &&
+                event.clientY <= rect.bottom
+            );
+        }
+        
+        // 处理论语文件拖拽
+        function handleLunyuDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            
+            if (file) {
+                handleFileValidation(file, 'lunyu', (validFile) => {
+                    if (validFile) {
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(validFile);
+                        lunyuFileInput.files = dataTransfer.files;
+                        const event = new Event('change', { bubbles: true });
+                        lunyuFileInput.dispatchEvent(event);
+                    }
+                });
+            }
+        }
+        
+        // 处理孟子文件拖拽
+        function handleMengziDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            
+            if (file) {
+                handleFileValidation(file, 'mengzi', (validFile) => {
+                    if (validFile) {
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(validFile);
+                        mengziFileInput.files = dataTransfer.files;
+                        const event = new Event('change', { bubbles: true });
+                        mengziFileInput.dispatchEvent(event);
+                    }
+                });
+            }
+        }
+        
+        // 文件验证
+        function handleFileValidation(file, type, callback) {
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+            if (!['xlsx', 'xls'].includes(fileExtension)) {
+                alert(`${type === 'lunyu' ? '《论语》' : '《孟子》'}文件格式错误，请上传 .xlsx 或 .xls 格式的Excel文件`);
+                callback(null);
+                return;
+            }
+            
+            const maxSize = 10 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert(`${type === 'lunyu' ? '《论语》' : '《孟子》'}文件过大，请上传不超过10MB的文件`);
+                callback(null);
+                return;
+            }
+            
+            callback(file);
+        }
+        
+        // 处理论语文件上传
+        function handleLunyuFileUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileValidation(file, 'lunyu', (validFile) => {
+                    if (validFile) {
+                        lunyuFileName.textContent = file.name;
+                        parseExcelFile(file, (data) => {
+                            lunyuData = data;
+                            console.log('解析论语数据:', lunyuData);
+                            checkFilesUploaded();
+                        });
+                    } else {
+                        e.target.value = '';
+                    }
+                });
+            } else {
+                lunyuFileName.textContent = "点击或拖拽文件到此处";
+                lunyuData = null;
+                checkFilesUploaded();
+            }
+        }
+        
+        // 处理孟子文件上传
+        function handleMengziFileUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileValidation(file, 'mengzi', (validFile) => {
+                    if (validFile) {
+                        mengziFileName.textContent = file.name;
+                        parseExcelFile(file, (data) => {
+                            mengziData = data;
+                            console.log('解析孟子数据:', mengziData);
+                            checkFilesUploaded();
+                        });
+                    } else {
+                        e.target.value = '';
+                    }
+                });
+            } else {
+                mengziFileName.textContent = "点击或拖拽文件到此处";
+                mengziData = null;
+                checkFilesUploaded();
+            }
+        }
+        
+        // 检查文件是否都已上传
+        function checkFilesUploaded() {
+            visualizeBtn.disabled = !(lunyuData && mengziData);
+        }
+        
+        // 解析Excel文件
+        function parseExcelFile(file, callback) {
+            const reader = new FileReader();
+            
+            reader.onloadstart = function() {
+                console.log('开始解析文件:', file.name);
+            };
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheets = {};
+                    
+                    workbook.SheetNames.forEach(sheetName => {
+                        const worksheet = workbook.Sheets[sheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        
+                        let concepts = [];
+                        let cooccurrences = [];
+                        let isConceptSection = false;
+                        let isCooccurSection = false;
+                        
+                        jsonData.forEach((row, rowIndex) => {
+                            if (row[0] && row[0].includes('概念词汇')) {
+                                isConceptSection = true;
+                                isCooccurSection = false;
+                                return;
+                            }
+                            if (row[0] && row[0].includes('概念共现')) {
+                                isConceptSection = false;
+                                isCooccurSection = true;
+                                return;
+                            }
+                            if (!row[0] || row[0] === '') {
+                                isConceptSection = false;
+                                isCooccurSection = false;
+                                return;
+                            }
+                            if (isConceptSection && row[0] && row[1]) {
+                                const concept = row[0].split('(')[0].trim();
+                                const freq = parseInt(row[1], 10);
+                                if (!isNaN(freq)) {
+                                    concepts.push({ concept, freq });
+                                } else {
+                                    console.warn(`非数字频率值: ${row[1]} 在第${rowIndex+1}行`);
+                                }
+                            }
+                            if (isCooccurSection && row[0] && row[1]) {
+                                const pairRaw = row[0].trim();
+                                const count = parseInt(row[1], 10);
+                                if (!isNaN(count)) {
+                                    const [concept1Raw, concept2Raw] = pairRaw.split(' - ');
+                                    if (concept1Raw && concept2Raw) {
+                                        const concept1 = concept1Raw.split('(')[0].trim();
+                                        const concept2 = concept2Raw.split('(')[0].trim();
+                                        cooccurrences.push({ concept1, concept2, count });
+                                    } else {
+                                        console.warn(`无效的共现对: ${pairRaw} 在第${rowIndex+1}行`);
+                                    }
+                                } else {
+                                    console.warn(`非数字共现值: ${row[1]} 在第${rowIndex+1}行`);
+                                }
+                            }
+                        });
+                        concepts.sort((a, b) => b.freq - a.freq);
+                        sheets[sheetName] = { concepts, cooccurrences };
+                    });
+                    
+                    const hasValidData = Object.values(sheets).some(sheet => 
+                        sheet.concepts.length > 0 || sheet.cooccurrences.length > 0
+                    );
+                    
+                    if (!hasValidData) {
+                        throw new Error('文件中未找到有效数据，请检查文件格式是否正确');
+                    }
+                    
+                    callback(sheets);
+                } catch (error) {
+                    console.error('解析Excel文件出错:', error);
+                    alert(`文件解析失败: ${error.message}\n请检查文件是否损坏或格式是否正确`);
+                }
+            };
+            
+            reader.onerror = function() {
+                console.error('文件读取错误');
+                alert('文件读取失败，请重试或选择其他文件');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 生成可视化
+        visualizeBtn.addEventListener('click', generateVisualization);
+        
+        function generateVisualization() {
+            try {
+                const processedData = processData(lunyuData, mengziData);
+                console.log('处理后的数据:', processedData);
+                
+                visualizationSection.classList.remove('hidden');
+                generateChapterDirectory();
+                initCooccurrenceChart(processedData);
+                initRingChart(processedData);
+                initHeatmapChart(processedData);
+                initSankeyCharts(processedData);
+                
+                const firstChapter = document.querySelector('.chapter-item.full-text');
+                if (firstChapter) {
+                    firstChapter.click();
+                }
+                
+                window.addEventListener('resize', handleResize);
+            } catch (error) {
+                console.error('生成可视化出错:', error);
+                alert(`生成可视化失败: ${error.message}`);
+            }
+        }
+        
+        // 处理数据
+        function processData(lunyuData, mengziData) {
+            const extractChapters = (data, prefix) => {
+                const chapters = [];
+                const allConcepts = [];
+                const chapterNames = [];
+                let fullTextConcepts = [];
+                let fullTextCooccurrences = [];
+                
+                Object.entries(data).forEach(([sheetName, sheetData]) => {
+                    if (sheetName.includes('全文')) {
+                        fullTextConcepts = sheetData.concepts;
+                        fullTextCooccurrences = sheetData.cooccurrences;
+                        return;
+                    }
+                    
+                    const cleanSheetName = sheetName.replace('<', '').replace('>', '');
+                    const displayName = `${prefix}-${cleanSheetName.split('_')[1] || cleanSheetName}`;
+                    chapterNames.push(displayName);
+                    chapters.push({
+                        name: displayName,
+                        originalName: sheetName,
+                        concepts: sheetData.concepts
+                    });
+                    
+                    sheetData.concepts.forEach(concept => {
+                        allConcepts.push(concept.concept);
+                    });
+                });
+                
+                chapters.unshift({
+                    name: `${prefix}-全文`,
+                    originalName: '全文统计',
+                    concepts: fullTextConcepts
+                });
+                chapterNames.unshift(`${prefix}-全文`);
+                
+                return { 
+                    chapters, 
+                    allConcepts, 
+                    chapterNames,
+                    fullTextConcepts,
+                    fullTextCooccurrences
+                };
+            };
+            
+            const lunyuChaptersData = extractChapters(lunyuData, '论语');
+            const mengziChaptersData = extractChapters(mengziData, '孟子');
+            
+            const mergeConcepts = (data) => {
+                const merged = {};
+                Object.values(data).forEach(sheet => {
+                    sheet.concepts.forEach(({ concept, freq }) => {
+                        merged[concept] = (merged[concept] || 0) + freq;
+                    });
+                });
+                return Object.entries(merged)
+                    .map(([concept, freq]) => ({ concept, freq }))
+                    .sort((a, b) => b.freq - a.freq);
+            };
+            
+            const lunyuConcepts = mergeConcepts(lunyuData);
+            const mengziConcepts = mergeConcepts(mengziData);
+            
+            const mergeCooccurrences = (data) => {
+                const merged = {};
+                Object.values(data).forEach(sheet => {
+                    sheet.cooccurrences.forEach(({ concept1, concept2, count }) => {
+                        const key = [concept1, concept2].sort().join('-');
+                        merged[key] = (merged[key] || 0) + count;
+                    });
+                });
+                
+                return Object.entries(merged)
+                    .map(([key, count]) => {
+                        const [concept1, concept2] = key.split('-');
+                        return { concept1, concept2, count };
+                    })
+                    .sort((a, b) => b.count - a.count);
+            };
+            
+            const lunyuCooccurrences = mergeCooccurrences(lunyuData);
+            const mengziCooccurrences = mergeCooccurrences(mengziData);
+            const allCooccurrences = [...lunyuCooccurrences, ...mengziCooccurrences]
+                .sort((a, b) => b.count - a.count);
+            
+            const top25Lunyu = lunyuChaptersData.fullTextConcepts
+                .sort((a, b) => b.freq - a.freq)
+                .slice(0, 25);
+            const top25Mengzi = mengziChaptersData.fullTextConcepts
+                .sort((a, b) => b.freq - a.freq)
+                .slice(0, 25);
+            
+            const buildHeatmapData = (chapters, selectedConcepts) => {
+                return chapters.map(chapter => {
+                    return selectedConcepts.map(concept => {
+                        const found = chapter.concepts.find(c => c.concept === concept);
+                        return found ? found.freq : 0;
+                    });
+                });
+            };
+            
+            const lunyuChaptersOnly = lunyuChaptersData.chapters.filter(ch => !ch.name.includes('全文'));
+            const mengziChaptersOnly = mengziChaptersData.chapters.filter(ch => !ch.name.includes('全文'));
+            
+            const lunyuHeatmapData = buildHeatmapData(lunyuChaptersOnly, top25Lunyu.map(item => item.concept));
+            const mengziHeatmapData = buildHeatmapData(mengziChaptersOnly, top25Mengzi.map(item => item.concept));
+            
+            const getChapterFreqMap = (chapters) => {
+                const freqMap = {};
+                chapters.forEach(chapter => {
+                    const conceptMap = {};
+                    chapter.concepts.forEach(c => {
+                        conceptMap[c.concept] = c.freq;
+                    });
+                    freqMap[chapter.name] = conceptMap;
+                });
+                return freqMap;
+            };
+            
+            const lunyuFreqMap = getChapterFreqMap(lunyuChaptersOnly);
+            const mengziFreqMap = getChapterFreqMap(mengziChaptersOnly);
+            
+            const lunyuConceptFreq = {};
+            lunyuChaptersData.fullTextConcepts.forEach(c => {
+                lunyuConceptFreq[c.concept] = c.freq;
+            });
+            
+            const mengziConceptFreq = {};
+            mengziChaptersData.fullTextConcepts.forEach(c => {
+                mengziConceptFreq[c.concept] = c.freq;
+            });
+            
+            const commonConceptsWithScores = [...new Set(
+                lunyuChaptersData.allConcepts.filter(concept => 
+                    mengziChaptersData.allConcepts.includes(concept)
+                )
+            )].map(concept => ({
+                concept,
+                totalScore: (lunyuConceptFreq[concept] || 0) + (mengziConceptFreq[concept] || 0),
+                lunyuScore: lunyuConceptFreq[concept] || 0,
+                mengziScore: mengziConceptFreq[concept] || 0
+            }))
+            .sort((a, b) => b.totalScore - a.totalScore)
+            .slice(0, 25)
+            .map(item => item.concept);
+            
+            // 对比分析图章节顺序：孟子在前，论语在后
+            const allChaptersCombined = [...mengziChaptersOnly, ...lunyuChaptersOnly];
+            
+            const compareHeatmapData = commonConceptsWithScores.map(concept => {
+                return allChaptersCombined.map((chapter) => {
+                    if (chapter.name.includes('孟子')) {
+                        return mengziFreqMap[chapter.name] ? mengziFreqMap[chapter.name][concept] || 0 : 0;
+                    } else {
+                        return lunyuFreqMap[chapter.name] ? lunyuFreqMap[chapter.name][concept] || 0 : 0;
+                    }
+                });
+            });
+            
+            return {
+                lunyu: {
+                    chapters: lunyuChaptersData.chapters,
+                    chapterNames: lunyuChaptersData.chapterNames,
+                    concepts: lunyuConcepts,
+                    cooccurrences: lunyuCooccurrences,
+                    fullTextCooccurrences: lunyuChaptersData.fullTextCooccurrences,
+                    heatmapData: lunyuHeatmapData,
+                    heatmapChapters: lunyuChaptersOnly.map(ch => ch.name),
+                    topConcepts: top25Lunyu.map(item => item.concept)
+                },
+                mengzi: {
+                    chapters: mengziChaptersData.chapters,
+                    chapterNames: mengziChaptersData.chapterNames,
+                    concepts: mengziConcepts,
+                    cooccurrences: mengziCooccurrences,
+                    fullTextCooccurrences: mengziChaptersData.fullTextCooccurrences,
+                    heatmapData: mengziHeatmapData,
+                    heatmapChapters: mengziChaptersOnly.map(ch => ch.name),
+                    topConcepts: top25Mengzi.map(item => item.concept)
+                },
+                allCooccurrences,
+                top25Lunyu,
+                top25Mengzi,
+                commonConcepts: commonConceptsWithScores,
+                compareHeatmapData,
+                compareHeatmapChapters: allChaptersCombined.map(ch => ch.name)
+            };
+        }
+        
+        // 生成章节目录
+        function generateChapterDirectory() {
+            lunyuChapters.innerHTML = '';
+            mengziChapters.innerHTML = '';
+            
+            Object.entries(lunyuData).forEach(([sheetName, sheetData]) => {
+                let displayName, isFullText;
+                if (sheetName.includes('全文')) {
+                    displayName = '论语-全文';
+                    isFullText = true;
+                } else {
+                    const cleanSheetName = sheetName.replace('<', '').replace('>', '');
+                    displayName = `论语-${cleanSheetName.split('_')[1] || cleanSheetName}`;
+                    isFullText = false;
+                }
+                
+                const chapterEl = document.createElement('div');
+                chapterEl.className = `chapter-item ${isFullText ? 'full-text' : ''}`;
+                chapterEl.textContent = displayName;
+                chapterEl.dataset.sheet = sheetName;
+                chapterEl.dataset.book = 'lunyu';
+                
+                chapterEl.addEventListener('click', function() {
+                    document.querySelectorAll('.chapter-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    currentChapter = {
+                        book: this.dataset.book,
+                        sheetName: this.dataset.sheet
+                    };
+                    showChapterBarChart();
+                });
+                
+                if (isFullText) {
+                    lunyuChapters.insertBefore(chapterEl, lunyuChapters.firstChild);
+                } else {
+                    lunyuChapters.appendChild(chapterEl);
+                }
+            });
+            
+            Object.entries(mengziData).forEach(([sheetName, sheetData]) => {
+                let displayName, isFullText;
+                if (sheetName.includes('全文')) {
+                    displayName = '孟子-全文';
+                    isFullText = true;
+                } else {
+                    const cleanSheetName = sheetName.replace('<', '').replace('>', '');
+                    displayName = `孟子-${cleanSheetName.split('_')[1] || cleanSheetName}`;
+                    isFullText = false;
+                }
+                
+                const chapterEl = document.createElement('div');
+                chapterEl.className = `chapter-item ${isFullText ? 'full-text' : ''}`;
+                chapterEl.textContent = displayName;
+                chapterEl.dataset.sheet = sheetName;
+                chapterEl.dataset.book = 'mengzi';
+                
+                chapterEl.addEventListener('click', function() {
+                    document.querySelectorAll('.chapter-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    currentChapter = {
+                        book: this.dataset.book,
+                        sheetName: this.dataset.sheet
+                    };
+                    showChapterBarChart();
+                });
+                
+                if (isFullText) {
+                    mengziChapters.insertBefore(chapterEl, mengziChapters.firstChild);
+                } else {
+                    mengziChapters.appendChild(chapterEl);
+                }
+            });
+        }
+        
+        // 显示章节柱状图
+        function showChapterBarChart() {
+            if (!currentChapter) return;
+            
+            const bookData = currentChapter.book === 'lunyu' ? lunyuData : mengziData;
+            const sheet = bookData[currentChapter.sheetName];
+            
+            if (!sheet) return;
+            
+            const top20 = [...sheet.concepts]
+                .sort((a, b) => b.freq - a.freq)
+                .slice(0, 20);
+            
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'value',
+                    name: '频率',
+                    nameLocation: 'end'
+                },
+                yAxis: {
+                    type: 'category',
+                    data: top20.map(item => item.concept),
+                    axisLabel: {
+                        rotate: 45,
+                        interval: 0,
+                        fontSize: 12
+                    }
+                },
+                series: [
+                    {
+                        name: '频率',
+                        type: 'bar',
+                        data: top20.map(item => item.freq),
+                        itemStyle: {
+                            color: currentChapter.book === 'lunyu' ? '#1a5fb4' : '#c15400'
+                        },
+                        label: {
+                            show: true,
+                            position: 'right',
+                            valueAnimation: true
+                        }
+                    }
+                ]
+            };
+            
+            if (!chapterBarChart) {
+                chapterBarChart = echarts.init(document.getElementById('chapterBarChart'));
+            }
+            
+            chapterBarChart.setOption(option);
+        }
+                
+        // 初始化环形对比图
+        function initRingChart(data) {
+            try {
+                if (ringChart) ringChart.dispose();
+                ringChart = echarts.init(document.getElementById('ringChart'));
+                
+                const allConcepts = [...new Set([
+                    ...data.lunyu.concepts.map(item => item.concept),
+                    ...data.mengzi.concepts.map(item => item.concept)
+                ])].slice(0, 20);
+                
+                const lunyuDataArr = allConcepts.map(concept => {
+                    const item = data.lunyu.concepts.find(m => m.concept === concept);
+                    return item ? item.freq : 0;
+                });
+                
+                const mengziDataArr = allConcepts.map(concept => {
+                    const item = data.mengzi.concepts.find(m => m.concept === concept);
+                    return item ? item.freq : 0;
+                });
+                
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: function(params) {
+                            const concept = allConcepts[params.dataIndex];
+                            return `<div class="font-medium">${concept}</div>
+                                    <div>《论语》: ${lunyuDataArr[params.dataIndex]}</div>
+                                    <div>《孟子》: ${mengziDataArr[params.dataIndex]}</div>`;
+                        }
+                    },
+                    legend: {
+                        data: ['《论语》', '《孟子》'],
+                        top: 20,
+                        left: 'center',
+                        orient: 'horizontal',
+                        textStyle: {
+                            fontSize: 14
+                        }
+                    },
+                    series: [
+                        {
+                            name: '《论语》',
+                            type: 'pie',
+                            radius: ['35%', '55%'],
+                            center: ['50%', '50%'],
+                            data: lunyuDataArr.map((value, index) => ({
+                                value,
+                                name: allConcepts[index]
+                            })),
+                            itemStyle: { color: '#1a5fb4' },
+                            label: {
+                                show: true,
+                                position: 'inside',
+                                formatter: params => {
+                                    return params.data.value > 0 ? params.name : '';
+                                },
+                                fontSize: 12
+                            },
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        },
+                        {
+                            name: '《孟子》',
+                            type: 'pie',
+                            radius: ['60%', '80%'],
+                            center: ['50%', '50%'],
+                            data: mengziDataArr.map((value, index) => ({
+                                value,
+                                name: allConcepts[index]
+                            })),
+                            itemStyle: { color: '#c15400' },
+                            label: {
+                                show: true,
+                                position: 'outside',
+                                formatter: params => {
+                                    return params.data.value > 0 ? params.name : '';
+                                },
+                                fontSize: 12,
+                                alignTo: 'labelLine',
+                                distanceToLabelLine: 5
+                            },
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                };
+                
+                ringChart.setOption(option);
+            } catch (error) {
+                console.error('初始化环形图出错:', error);
+                alert(`环形图初始化失败: ${error.message}`);
+            }
+        }
+        
+        // 初始化热力图
+        function initHeatmapChart(data) {
+            try {
+                if (heatmapChart) heatmapChart.dispose();
+                heatmapChart = echarts.init(document.getElementById('heatmapChart'));
+                
+                updateHeatmapButtons();
+                updateHeatmapChart(data);
+                
+                heatmapLunyuBtn.addEventListener('click', () => {
+                    heatmapType = 'lunyu';
+                    updateHeatmapButtons();
+                    updateHeatmapChart(data);
+                });
+                
+                heatmapMengziBtn.addEventListener('click', () => {
+                    heatmapType = 'mengzi';
+                    updateHeatmapButtons();
+                    updateHeatmapChart(data);
+                });
+                
+                heatmapCompareBtn.addEventListener('click', () => {
+                    heatmapType = 'compare';
+                    updateHeatmapButtons();
+                    updateHeatmapChart(data);
+                });
+            } catch (error) {
+                console.error('初始化热力图出错:', error);
+                alert(`热力图初始化失败: ${error.message}`);
+            }
+        }
+        
+        // 更新热力图按钮状态
+        function updateHeatmapButtons() {
+            heatmapLunyuBtn.classList.remove('active');
+            heatmapMengziBtn.classList.remove('active');
+            heatmapCompareBtn.classList.remove('active');
+            
+            if (heatmapType === 'lunyu') {
+                heatmapLunyuBtn.classList.add('active');
+            } else if (heatmapType === 'mengzi') {
+                heatmapMengziBtn.classList.add('active');
+            } else {
+                heatmapCompareBtn.classList.add('active');
+            }
+        }
+        
+        // 更新热力图数据（核心修改部分）
+        function updateHeatmapChart(data) {
+            if (heatmapChart) {
+                heatmapChart.clear();
+            }
+            
+            let option;
+            
+            if (heatmapType === 'lunyu') {
+                const heatmapData = data.lunyu.heatmapData.flatMap((row, rowIndex) => 
+                    row.map((value, colIndex) => [colIndex, rowIndex, value])
+                );
+                const xAxisData = data.lunyu.heatmapChapters;
+                const yAxisData = data.lunyu.topConcepts;
+                const maxValue = Math.max(...data.lunyu.heatmapData.flat()) || 1;
+                
+                option = {
+                    tooltip: {
+                        formatter: function(params) {
+                            const chapter = xAxisData[params.data[0]];
+                            const concept = yAxisData[params.data[1]];
+                            const value = params.data[2];
+                            return `<div class="font-medium">${concept}</div>
+                                    <div>章节: ${chapter}</div>
+                                    <div>频次: ${value}</div>`;
+                        }
+                    },
+                    grid: {
+                        left: '12%',
+                        right: '5%',
+                        bottom: '15%',
+                        top: '8%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: xAxisData,
+                        axisLabel: {
+                            rotate: 45,
+                            interval: 0,
+                            fontSize: 10
+                        }
+                    },
+                    yAxis: {
+                        type: 'category',
+                        data: yAxisData,
+                        axisLabel: {
+                            fontSize: 10
+                        }
+                    },
+                    visualMap: {
+                        type: 'continuous',
+                        min: 0,
+                        max: maxValue,
+                        calculable: true,
+                        orient: 'horizontal',
+                        left: 'center',
+                        bottom: 0,
+                        inRange: {
+                            color: ['#f7fbff', '#abd0e6', '#3787c0', '#0d4b87']
+                        }
+                    },
+                    series: [{
+                        name: '《论语》概念频次',
+                        type: 'heatmap',
+                        data: heatmapData,
+                        emphasis: {
+                            itemStyle: {
+                                borderColor: '#333',
+                                borderWidth: 2
+                            }
+                        }
+                    }]
+                };
+            } 
+            // 孟子热力图修复版本
+            else if (heatmapType === 'mengzi') {
+                // 提取孟子数据
+                const concepts = data.mengzi.topConcepts;
+                const chapters = data.mengzi.heatmapChapters;
+                const matrixData = data.mengzi.heatmapData;
+                
+                // 确保数据格式正确
+                const formattedData = [];
+                for (let i = 0; i < concepts.length; i++) {
+                    for (let j = 0; j < chapters.length; j++) {
+                        formattedData.push([j, i, matrixData[j] ? (matrixData[j][i] || 0) : 0]);
+                    }
+                }
+                
+                // 计算最大值用于视觉映射
+                const maxValue = matrixData.length > 0 
+                    ? Math.max(...matrixData.flat().map(v => v || 0)) 
+                    : 1;
+                
+                // 固定网格位置，确保填充整个容器
+                option = {
+                    tooltip: {
+                        formatter: function(params) {
+                            const chapter = chapters[params.data[0]];
+                            const concept = concepts[params.data[1]];
+                            const value = params.data[2];
+                            return `<div class="font-medium">${concept}</div>
+                                    <div>章节: ${chapter}</div>
+                                    <div>频次: ${value}</div>`;
+                        }
+                    },
+                    grid: {
+                        left: '12%',
+                        right: '5%',
+                        bottom: '15%',
+                        top: '8%',
+                        height: '75%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: chapters,
+                        axisLabel: {
+                            rotate: 45,
+                            interval: 0,
+                            fontSize: 10
+                        }
+                    },
+                    yAxis: {
+                        type: 'category',
+                        data: concepts,
+                        axisLabel: {
+                            fontSize: 10
+                        }
+                    },
+                    visualMap: {
+                        type: 'continuous',
+                        min: 0,
+                        max: maxValue,
+                        calculable: true,
+                        orient: 'horizontal',
+                        left: 'center',
+                        bottom: 0,
+                        inRange: {
+                            color: ['#fff7ec', '#fdd49e', '#fd8d3c', '#d94801']
+                        }
+                    },
+                    series: [{
+                        name: '《孟子》概念频次',
+                        type: 'heatmap',
+                        data: formattedData,
+                        emphasis: {
+                            itemStyle: {
+                                borderColor: '#333',
+                                borderWidth: 2
+                            }
+                        },
+                        // 确保热力图填满整个区域
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        layout: 'none'
+                    }]
+                };
+            } 
+            // 对比分析图
+            else {
+                const xAxisData = data.compareHeatmapChapters;
+                const yAxisData = data.commonConcepts;
+                const maxValue = Math.max(...data.compareHeatmapData.flat()) || 1;
+                
+                const heatmapData = data.compareHeatmapData.flatMap((chapterData, conceptIndex) => 
+                    chapterData.map((value, chapterIndex) => 
+                        [chapterIndex, conceptIndex, value]
+                    )
+                );
+                
+                option = {
+                    tooltip: {
+                        formatter: function(params) {
+                            const chapter = xAxisData[params.data[0]];
+                            const concept = yAxisData[params.data[1]];
+                            const value = params.data[2];
+                            return `<div class="font-medium">${concept}</div>
+                                    <div>章节: ${chapter}</div>
+                                    <div>总频次: ${value}</div>`;
+                        }
+                    },
+                    grid: {
+                        left: '12%',
+                        right: '5%',
+                        bottom: '15%',
+                        top: '8%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: xAxisData,
+                        axisLabel: {
+                            rotate: 45,
+                            interval: 0,
+                            fontSize: 10
+                        }
+                    },
+                    yAxis: {
+                        type: 'category',
+                        data: yAxisData,
+                        axisLabel: {
+                            fontSize: 10
+                        }
+                    },
+                    visualMap: {
+                        type: 'continuous',
+                        min: 0,
+                        max: maxValue,
+                        calculable: true,
+                        orient: 'horizontal',
+                        left: 'center',
+                        bottom: 0,
+                        inRange: {
+                            color: ['#f0eef5', '#d9d4e0', '#b9a9cf', '#9b86b8']
+                        }
+                    },
+                    series: [{
+                        name: '概念总频次',
+                        type: 'heatmap',
+                        data: heatmapData,
+                        emphasis: {
+                            itemStyle: {
+                                borderColor: '#333',
+                                borderWidth: 2
+                            }
+                        }
+                    }]
+                };
+            }
+            
+            heatmapChart.setOption(option);
+        }
+        
+        // 辅助函数：颜色转换
+        function getColorByValue(value, min, max, startColor, endColor) {
+            const ratio = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
+            const startRGB = hexToRgb(startColor);
+            const endRGB = hexToRgb(endColor);
+            const r = Math.round(startRGB.r + ratio * (endRGB.r - startRGB.r));
+            const g = Math.round(startRGB.g + ratio * (endRGB.g - startRGB.g));
+            const b = Math.round(startRGB.b + ratio * (endRGB.b - startRGB.b));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            return { r, g, b };
+        }
+
+        // 初始化共现图谱
+        function initCooccurrenceChart(data) {
+            try {
+                if (cooccurrenceChart) cooccurrenceChart.dispose();
+                cooccurrenceChart = echarts.init(document.getElementById('cooccurrenceChart'));
+                
+                const conceptsInCooccurrence = new Set();
+                data.allCooccurrences.forEach(({ concept1, concept2 }) => {
+                    conceptsInCooccurrence.add(concept1);
+                    conceptsInCooccurrence.add(concept2);
+                });
+                
+                const nodes = Array.from(conceptsInCooccurrence).map(concept => {
+                    let freq = 0;
+                    let category = 0;
+                    
+                    const lunyuConcept = data.lunyu.concepts.find(c => c.concept === concept);
+                    const mengziConcept = data.mengzi.concepts.find(c => c.concept === concept);
+                    
+                    if (lunyuConcept) {
+                        freq = lunyuConcept.freq;
+                        category = 0;
+                    }
+                    if (mengziConcept) {
+                        freq = mengziConcept.freq;
+                        category = 1;
+                    }
+                    
+                    if (lunyuConcept && mengziConcept) {
+                        freq = Math.max(lunyuConcept.freq, mengziConcept.freq);
+                        category = 2;
+                    }
+                    
+                    const symbolSize = Math.sqrt(freq) * 2 + 10;
+                    const fontSize = Math.min(Math.max(Math.sqrt(freq) * 1 + 8, 10), 18);
+                    
+                    return {
+                        name: concept,
+                        value: freq,
+                        category: category,
+                        symbolSize: symbolSize,
+                        fontSize: fontSize
+                    };
+                });
+                
+                const edges = data.allCooccurrences.map(({ concept1, concept2, count }) => ({
+                    source: concept1,
+                    target: concept2,
+                    value: count,
+                    lineStyle: {
+                        width: Math.log(count) * 2 || 1,
+                        color: 'rgba(100, 100, 100, 0.6)'
+                    }
+                }));
+                
+                const option = {
+                    tooltip: {
+                        formatter: function(params) {
+                            if (params.dataType === 'node') {
+                                return `<div class="font-medium">${params.name}</div>
+                                        <div>频率: ${params.value}</div>
+                                        <div>典籍: ${params.data.category === 0 ? '《论语》' : 
+                                                  params.data.category === 1 ? '《孟子》' : '《论语》《孟子》'}</div>`;
+                            } else {
+                                return `<div class="font-medium">共现关系</div>
+                                        <div>${params.source} - ${params.target}</div>
+                                        <div>共现次数: ${params.value}</div>`;
+                            }
+                        }
+                    },
+                    legend: [
+                        {
+                            data: ['《论语》概念', '《孟子》概念', '共同概念'],
+                            bottom: 10,
+                            left: 'center',
+                            textStyle: {
+                                fontSize: 12
+                            }
+                        }
+                    ],
+                    series: [
+                        {
+                            name: '共现关系',
+                            type: 'graph',
+                            layout: 'force',
+                            data: nodes,
+                            links: edges,
+                            categories: [
+                                { name: '《论语》概念', itemStyle: { color: '#1a5fb4', borderColor: '#fff', borderWidth: 2 } },
+                                { name: '《孟子》概念', itemStyle: { color: '#c15400', borderColor: '#fff', borderWidth: 2 } },
+                                { name: '共同概念', itemStyle: { color: '#4CAF50', borderColor: '#fff', borderWidth: 2 } }
+                            ],
+                            roam: true,
+                            label: {
+                                show: true,
+                                fontSize: function(params) {
+                                    return params.data.fontSize;
+                                },
+                                fontWeight: 'bold',
+                                position: 'inside',
+                                formatter: '{b}'
+                            },
+                            lineStyle: {
+                                opacity: 0.7,
+                                curveness: 0.1
+                            },
+                            force: {
+                                repulsion: 300,
+                                edgeLength: 150,
+                                layoutAnimation: true
+                            },
+                            emphasis: {
+                                focus: 'adjacency',
+                                lineStyle: { width: 3 }
+                            },
+                            draggable: true,
+                            edgeSymbol: ['circle', 'arrow'],
+                            edgeSymbolSize: [4, 8],
+                            edgeLabel: {
+                                show: false
+                            }
+                        }
+                    ]
+                };
+                
+                cooccurrenceChart.setOption(option);
+            } catch (error) {
+                console.error('初始化共现图谱出错:', error);
+                alert(`共现图谱初始化失败: ${error.message}`);
+            }
+        }
+       
+        // 初始化桑基图
+        function initSankeyCharts(data) {
+            try {
+                if (sankeyLunyuChart) sankeyLunyuChart.dispose();
+                sankeyLunyuChart = echarts.init(document.getElementById('sankeyLunyu'));
+                
+                if (sankeyMengziChart) sankeyMengziChart.dispose();
+                sankeyMengziChart = echarts.init(document.getElementById('sankeyMengzi'));
+                
+                const lunyuSankeyOption = createSankeyOption(
+                    '论语', 
+                    '#1a5fb4', 
+                    data.lunyu.fullTextCooccurrences
+                );
+                const mengziSankeyOption = createSankeyOption(
+                    '孟子', 
+                    '#c15400', 
+                    data.mengzi.fullTextCooccurrences
+                );
+                
+                sankeyLunyuChart.setOption(lunyuSankeyOption);
+                sankeyMengziChart.setOption(mengziSankeyOption);
+            } catch (error) {
+                console.error('初始化桑基图出错:', error);
+                alert(`桑基图初始化失败: ${error.message}`);
+            }
+        }
+        
+        function createSankeyOption(title, color, cooccurrences) {
+            const nodesMap = new Map();
+            const links = [];
+            
+            const topCooccurrences = [...cooccurrences].sort((a, b) => b.count - a.count).slice(0, 20);
+            
+            topCooccurrences.forEach(({ concept1, concept2 }) => {
+                if (!nodesMap.has(concept1)) {
+                    nodesMap.set(concept1, { name: concept1 });
+                }
+                if (!nodesMap.has(concept2)) {
+                    nodesMap.set(concept2, { name: concept2 });
+                }
+            });
+            
+            const nodes = Array.from(nodesMap.values());
+            
+            topCooccurrences.forEach(({ concept1, concept2, count }) => {
+                links.push({
+                    source: concept1,
+                    target: concept2,
+                    value: count
+                });
+            });
+            
+            return {
+                title: {
+                    text: `《${title}》概念共现关系`,
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    triggerOn: 'mousemove',
+                    formatter: '{b}: {c}'
+                },
+                series: [
+                    {
+                        type: 'sankey',
+                        layout: 'none',
+                        emphasis: {
+                            focus: 'adjacency'
+                        },
+                        data: nodes,
+                        links: links,
+                        lineStyle: {
+                            color: 'gradient',
+                            curveness: 0.5
+                        },
+                        itemStyle: {
+                            color: color
+                        },
+                        label: {
+                            color: 'rgba(0, 0, 0, 0.7)',
+                            fontSize: 12
+                        }
+                    }
+                ]
+            };
+        }
+        
+        // 处理窗口大小变化
+        function handleResize() {
+            try {
+                if (cooccurrenceChart) cooccurrenceChart.resize();
+                if (ringChart) ringChart.resize();
+                if (heatmapChart) heatmapChart.resize();
+                if (chapterBarChart) chapterBarChart.resize();
+                if (sankeyLunyuChart) sankeyLunyuChart.resize();
+                if (sankeyMengziChart) sankeyMengziChart.resize();
+            } catch (error) {
+                console.error('调整图表大小出错:', error);
+            }
+        }
+        
+        // 关于模态框控制
+        aboutBtn.addEventListener('click', () => aboutModal.classList.remove('hidden'));
+        closeAboutBtn.addEventListener('click', () => aboutModal.classList.add('hidden'));
+        aboutModal.addEventListener('click', (e) => {
+            if (e.target === aboutModal) aboutModal.classList.add('hidden');
+        });
+        
+        // 初始化文件上传事件
+        initFileUploadEvents();
+    </script>
+</body>
+</html>
+</content>
+</document>
